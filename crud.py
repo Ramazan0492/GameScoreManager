@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 import models
 import schemas
+import auth 
 
 # READ: Alle spelers ophalen
 def get_players(db: Session):
@@ -12,8 +13,12 @@ def get_speler(db: Session, speler_id: int):
     return db.query(models.Player).filter(models.Player.id == speler_id).first()
 
 # CREATE: Nieuwe speler toevoegen
-def create_speler(db: Session, speler: schemas.NieuweSpeler):
-    nieuwe_speler = models.Player(username=speler.username)
+def create_speler(db: Session, speler: schemas.SpelerCreate):
+    # 1. Versleutel het wachtwoord met onze nieuwe auth-functie
+    hashed_pw = auth.get_password_hash(speler.password)
+    
+    # 2. Maak de speler aan en sla de hash op in plaats van het normale wachtwoord
+    nieuwe_speler = models.Player(username=speler.username, hashed_password=hashed_pw)
     db.add(nieuwe_speler)
     db.commit()
     db.refresh(nieuwe_speler)
@@ -35,3 +40,7 @@ def create_score(db: Session, speler_id: int, score_data: schemas.NieuweScore):
 # READ: Leaderboard ophalen (gesorteerd van hoog naar laag)
 def get_leaderboard(db: Session):
     return db.query(models.Score).order_by(models.Score.score.desc()).all()
+
+# READ: Zoek een speler op gebruikersnaam (nodig voor inloggen)
+def get_speler_by_username(db: Session, username: str):
+    return db.query(models.Player).filter(models.Player.username == username).first()
