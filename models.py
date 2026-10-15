@@ -1,5 +1,4 @@
-# models.py
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -8,7 +7,8 @@ class Player(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)  # <-- Deze regel is nieuw!
+    hashed_password = Column(String)
+    is_admin = Column(Boolean, default=False)  # <-- Hier is de admin check succesvol toegevoegd!
 
     scores = relationship("Score", back_populates="player")
 

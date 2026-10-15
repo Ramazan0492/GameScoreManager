@@ -1,9 +1,10 @@
 # routers/players.py
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 import schemas
 import crud  # <-- Importeer je Service Layer
-import auth  # <-- Nieuwe import voor de beveiliging!
+import auth  # <-- Beveiliging
+import models # <-- Toegevoegd om de admin-status uit de database te halen
 from database import SessionLocal
 from sqlalchemy.exc import IntegrityError
 
@@ -24,7 +25,6 @@ def get_db():
 def get_players(db: Session = Depends(get_db)):
     return crud.get_players(db)
 
-# POST: Nieuwe speler toevoegen (Input: SpelerCreate met wachtwoord, Output: SpelerResponse ZONDER wachtwoord)
 # POST: Nieuwe speler toevoegen 
 @router.post("/", status_code=201, response_model=schemas.SpelerResponse)
 def voeg_speler_toe(speler: schemas.SpelerCreate, db: Session = Depends(get_db)):
@@ -45,20 +45,28 @@ def get_speler(speler_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Speler niet gevonden")
     return speler
 
-# DELETE: Speler verwijderen (Nu beveiligd met Autorisatie!)
+# DELETE: Speler verwijderen (Nu beveiligd: Alleen een ADMIN mag dit!)
 @router.delete("/{speler_id}")
 def verwijder_speler(
     speler_id: int, 
     db: Session = Depends(get_db),
-    current_user: str = Depends(auth.get_current_user)  
+    current_user_name: str = Depends(auth.get_current_user)  
 ):
+    # 1. Zoek de ingelogde gebruiker op in de database om zijn admin-status te checken
+    ingelogde_gebruiker = db.query(models.Player).filter(models.Player.username == current_user_name).first()
+    
+    # 2. De Autorisatie-check: Is de ingelogde gebruiker wel een admin?
+    if not ingelogde_gebruiker or not ingelogde_gebruiker.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Je hebt geen admin rechten om accounts te verwijderen!"
+        )
+
+    # 3. Zoek de speler die we willen verwijderen
     speler = crud.get_speler(db=db, speler_id=speler_id)
     if not speler:
         raise HTTPException(status_code=404, detail="Speler niet gevonden")
     
-    # De Autorisatie-check: Ben jij wel de eigenaar van dit account?
-    if speler.username != current_user:
-        raise HTTPException(status_code=403, detail="Je mag alleen je eigen account verwijderen!")
-    
+    # 4. Verwijder de speler
     crud.delete_speler(db=db, speler=speler)
     return {"bericht": f"Account van {speler.username} is succesvol verwijderd!"}
