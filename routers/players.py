@@ -5,6 +5,7 @@ import schemas
 import crud  # <-- Importeer je Service Layer
 import auth  # <-- Nieuwe import voor de beveiliging!
 from database import SessionLocal
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(
     prefix="/players",
@@ -24,9 +25,17 @@ def get_players(db: Session = Depends(get_db)):
     return crud.get_players(db)
 
 # POST: Nieuwe speler toevoegen (Input: SpelerCreate met wachtwoord, Output: SpelerResponse ZONDER wachtwoord)
+# POST: Nieuwe speler toevoegen 
 @router.post("/", status_code=201, response_model=schemas.SpelerResponse)
 def voeg_speler_toe(speler: schemas.SpelerCreate, db: Session = Depends(get_db)):
-    return crud.create_speler(db=db, speler=speler)
+    try:
+        # Probeer de speler aan te maken
+        return crud.create_speler(db=db, speler=speler)
+    except IntegrityError:
+        # Raakt de database in paniek (bijv. door een dubbele naam)? 
+        # Voorkom de 500 crash, herstel de database en geef een nette 400 error.
+        db.rollback() 
+        raise HTTPException(status_code=400, detail="Deze gebruikersnaam is al in gebruik!")
 
 # GET: Eén specifieke speler zoeken (Beveiligd: zonder wachtwoord)
 @router.get("/{speler_id}", response_model=schemas.SpelerResponse)
